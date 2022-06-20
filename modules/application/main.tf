@@ -33,11 +33,24 @@ data "template_cloudinit_config" "config" {
     apt-get -y install postgresql-client
     apt-get -y install figlet
 
+    systemctl stop nginx
+
     ALB_DNS=${var.alb_dns}
     POSTGRES_PRIVATEIP=${var.postgres_ip}
     
     mkdir -p /cloudacademy-app
     cd /cloudacademy-app
+
+    echo ===========================
+    echo API - download latest release, install, and start...
+    mkdir -p ./api
+    pushd ./api
+    curl -sL https://api.github.com/repos/cloudacademy/insecure-webapp/releases/latest | jq -r '.assets[1].browser_download_url' | xargs curl -OL
+    #start the API up...
+    echo POSTGRES_PRIVATEIP="$POSTGRES_PRIVATEIP"
+    java -version
+    (POSTGRES_USER=postgres POSTGRES_PASSWORD=cloudacademy POSTGRES_CONNSTR="jdbc:postgresql://$POSTGRES_PRIVATEIP:5432/cloudacademy?ssl=true&sslmode=require&sslfactory=org.postgresql.ssl.NonValidatingFactory" java -jar insecure-webapp-1.0-SNAPSHOT.jar > output.log) &
+    popd
 
     echo ===========================
     echo FRONTEND - download latest release and install...
@@ -53,18 +66,7 @@ data "template_cloudinit_config" "config" {
     EOFF
     popd
 
-    echo ===========================
-    echo API - download latest release, install, and start...
-    mkdir -p ./api
-    pushd ./api
-    curl -sL https://api.github.com/repos/cloudacademy/insecure-webapp/releases/latest | jq -r '.assets[1].browser_download_url' | xargs curl -OL
-    #start the API up...
-    echo POSTGRES_PRIVATEIP="$POSTGRES_PRIVATEIP"
-    java -version
-    (POSTGRES_USER=postgres POSTGRES_PASSWORD=cloudacademy POSTGRES_CONNSTR="jdbc:postgresql://$POSTGRES_PRIVATEIP:5432/cloudacademy?ssl=true&sslmode=require&sslfactory=org.postgresql.ssl.NonValidatingFactory" java -jar insecure-webapp-1.0-SNAPSHOT.jar > output.log) &
-    popd
-
-    systemctl restart nginx
+    systemctl start nginx
     systemctl status nginx
     
     echo fin v1.00!
